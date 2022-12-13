@@ -1,22 +1,19 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const methodOverride = require("method-override");
+const Fruit = require("./models/fruits.js");
+
 const app = express();
 const port = 3000;
-const Fruit = require("./models/fruits.js");
+
 // Set up middleware
-
-app.use((req, res, next) => {
-  console.log("I run for all routes");
-  next();
-});
-
+app.use(methodOverride("_method"));
 app.use(express.urlencoded({ extended: false }));
 
 app.set("view engine", "jsx");
-app.engine("jsx", require("express-react-views").createEngine());
-
 mongoose.set("strictQuery", true);
+app.engine("jsx", require("express-react-views").createEngine());
 
 // Setting up Mongoose
 mongoose.connect(process.env.MONGO_URI, {
@@ -28,7 +25,33 @@ mongoose.connection.once("open", () => {
   console.log("connected to mongo");
 });
 
-// Index route = Show all records
+// Seed route - populate the database for testing
+app.get("/fruits/seed", (req, res) => {
+  Fruit.create(
+    [
+      {
+        name: "grapefruit",
+        color: "pink",
+        readyToEat: true,
+      },
+      {
+        name: "grape",
+        color: "purple",
+        readyToEat: false,
+      },
+      {
+        name: "avocado",
+        color: "green",
+        readyToEat: true,
+      },
+    ],
+    (err, data) => {
+      res.redirect("/fruits");
+    }
+  );
+});
+
+// Index = Show all records
 app.get("/fruits", (req, res) => {
   Fruit.find({}, (error, allFruits) => {
     res.render("Index", {
@@ -42,8 +65,23 @@ app.get("/fruits/new", (req, res) => {
   res.render("New");
 });
 // Delete - Delete this one record
-
+app.delete("/fruits/:id", (req, res) => {
+  Fruit.findByIdAndRemove(req.params.id, (err, data) => {
+    res.redirect("/fruits");
+  });
+});
 // Update - Modifying a record
+app.put("/fruits/:id", (req, res) => {
+  if (req.body.readyToEat === "on") {
+    req.body.readyToEat = true;
+  } else {
+    req.body.readyToEat = false;
+  }
+  Fruit.findByIdAndUpdate(req.params.id, req.body, (err, updatedFruit) => {
+    console.log(updatedFruit);
+    res.redirect(`/fruits/${req.params.id}`);
+  });
+});
 
 // Create - send the filled form to db and create a new record
 app.post("/fruits", (req, res) => {
@@ -60,6 +98,18 @@ app.post("/fruits", (req, res) => {
   });
 });
 // Edit - Get the form with the record to update
+app.get("/fruits/:id/edit", (req, res) => {
+  Fruit.findById(req.params.id, (err, foundFruit) => {
+    //find the fruit
+    if (!err) {
+      res.render("Edit", {
+        fruit: foundFruit, //pass in the found fruit so we can prefill the form
+      });
+    } else {
+      res.send({ msg: err.message });
+    }
+  });
+});
 
 // Show route - Show me a particular record
 app.get("/fruits/:indexOfFruitsArray", function (req, res) {
